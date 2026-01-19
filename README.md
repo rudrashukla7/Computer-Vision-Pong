@@ -47,8 +47,8 @@ Quit | Press Q
 ## Installation
 
 1. Clone the repository:
-   git clone https://github.com/your-username/gesture-controlled-pong.git
-   cd gesture-controlled-pong
+   git clone https://github.com/rudrashukla7/Computer-Vision-Pong.git
+   cd Computer-Vision-Pong
 
 2. Install required libraries:
    pip install opencv-python mediapipe numpy
