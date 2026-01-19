@@ -69,7 +69,3 @@ Quit | Press Q
 - Single-player AI opponent
 - Adjustable difficulty
 - Improved gesture calibration
-
-## License
-
-This project is open-source and available under the MIT License.
