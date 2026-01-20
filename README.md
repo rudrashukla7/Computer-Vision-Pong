@@ -11,6 +11,7 @@ The game is controlled entirely with hand gestures using a webcam.
 - Countdown before gameplay begins
 - Two-player support using both hands
 - Angle-based ball physics
+- Score tracking system
 
 ## Libraries Used
 
@@ -64,7 +65,6 @@ Quit | Press Q
 
 ## Future Improvements
 
-- Score tracking system
 - Sound effects
 - Single-player AI opponent
 - Adjustable difficulty
