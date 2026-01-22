@@ -1,3 +1,8 @@
+""" Rudra Shukla
+    Computer Vision Pong Game
+    Uses hand tracking to control paddles"""
+
+# Import  libraries
 import cv2
 import mediapipe as mp
 import numpy as np
@@ -5,37 +10,41 @@ import math
 import time
 import random
 
+# Initialize video capture
 cap = cv2.VideoCapture(0)
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
 
+# Initialize Mediapipe Hand model
 mp_hands = mp.solutions.hands
 hand = mp_hands.Hands()
 mp_drawing = mp.solutions.drawing_utils
 
-
+# Game variables
 ball_pos = [320, 240]
 speed = 8
 ball_velocity = [speed * math.cos(random.uniform(-math.pi/3, math.pi/3)), speed * math.sin(random.uniform(-math.pi/3, math.pi/3))]
 ball_radius = 5
 paddle_width = 20
 paddle_height = 80
-
 left_paddle_y = 200
 right_paddle_y = 200
-
 left_score = 0
 right_score = 0
-max_score = 7
-
+max_score = 2
 game_started = False
 game_start_time = None
 countdown_active = False
 game_over = False
 winner = None
+single_player = False
+last_fist_time = 0
+fist_cooldown = 0.5
+ai_speed = 0.25  
+difficulty_selected = False
 
 
-
+# Function to detect if hand is in fist position
 def is_fist(hand_landmarks):
 
     fingertip_indices = [4, 8, 12, 16, 20]
@@ -52,66 +61,205 @@ def is_fist(hand_landmarks):
     
     return fingers_bent >= 4
 
+# Main loop
 try:
     while cv2.waitKey(1) != ord('q'):
         success, frame = cap.read()
+
+        # Process frame
         if success:
             frame = cv2.flip(frame, 1)
             RGB_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             result = hand.process(RGB_frame)
 
-            
+            # Reset hover states
             button_hovered = False
             hand_count = 0
+            single_player_hovered = False
+            two_player_hovered = False
+            easy_hovered = False
+            medium_hovered = False
+            hard_hovered = False
                 
+            # Hand detection and paddle control
             if result.multi_hand_landmarks:
                 hand_count = len(result.multi_hand_landmarks)
                 
                 for hand_landmarks in result.multi_hand_landmarks:
 
                     # Move paddles based on hand y position
-                    if hand_landmarks.landmark[9].x < 0.5:
-                        left_paddle_y = int(hand_landmarks.landmark[9].y * 480) - paddle_height // 2
-                    
-                    if hand_landmarks.landmark[9].x > 0.5:
-                        right_paddle_y = int(hand_landmarks.landmark[9].y * 480) - paddle_height // 2
+                    if single_player:
+                        if hand_landmarks.landmark[9].x > 0.5:
+                            right_paddle_y = int(hand_landmarks.landmark[9].y * 480) - paddle_height // 2
+                    else:
+                        if hand_landmarks.landmark[9].x < 0.5:
+                            left_paddle_y = int(hand_landmarks.landmark[9].y * 480) - paddle_height // 2
+                        
+                        if hand_landmarks.landmark[9].x > 0.5:
+                            right_paddle_y = int(hand_landmarks.landmark[9].y * 480) - paddle_height // 2
 
                     is_hand_fist = is_fist(hand_landmarks)
                     
-                    if game_started and is_hand_fist and not countdown_active:
+                    if game_started and is_hand_fist and not countdown_active and time.time() - last_fist_time > fist_cooldown:
                         game_started = False
+                        last_fist_time = time.time()
+                    
+                    # Check mode selection buttons
+                    hand_x = hand_landmarks.landmark[9].x * 640
+                    hand_y = hand_landmarks.landmark[9].y * 480
+                    
+                    if not game_started and not game_over and left_score == 0 and right_score == 0 and not difficulty_selected:
+                        # Single player button
+                        if 120 < hand_x < 300 and 180 < hand_y < 280:
+                            single_player_hovered = True
+                            if is_hand_fist and time.time() - last_fist_time > fist_cooldown:
+                                single_player = True
+                                difficulty_selected = True
+                                last_fist_time = time.time()
+
+                        # Two player button
+                        elif 340 < hand_x < 520 and 180 < hand_y < 280:
+                            two_player_hovered = True
+                            if is_hand_fist and time.time() - last_fist_time > fist_cooldown:
+                                single_player = False
+                                game_started = True
+                                countdown_active = True
+                                game_start_time = time.time()
+                                last_fist_time = time.time()
+
+                    # Check difficulty selection buttons
+                    if difficulty_selected and not game_started and not game_over and left_score == 0 and right_score == 0:
+                        # Easy button
+                        if 70 < hand_x < 210 and 200 < hand_y < 280:
+                            easy_hovered = True
+                            if is_hand_fist and time.time() - last_fist_time > fist_cooldown:
+                                ai_speed = 0.25
+                                game_started = True
+                                countdown_active = True
+                                game_start_time = time.time()
+                                last_fist_time = time.time()
+
+                        # Medium button
+                        elif 240 < hand_x < 400 and 200 < hand_y < 280:
+                            medium_hovered = True
+                            if is_hand_fist and time.time() - last_fist_time > fist_cooldown:
+                                ai_speed = 0.55
+                                game_started = True
+                                countdown_active = True
+                                game_start_time = time.time()
+                                last_fist_time = time.time()
+
+                        # Hard button
+                        elif 430 < hand_x < 570 and 200 < hand_y < 280:
+                            hard_hovered = True
+                            if is_hand_fist and time.time() - last_fist_time > fist_cooldown:
+                                ai_speed = 0.75
+                                game_started = True
+                                countdown_active = True
+                                game_start_time = time.time()
+                                last_fist_time = time.time()
                     
                     # Check if hand is over button
                     if 220 < hand_landmarks.landmark[9].x * 640 < 420 and 180 < hand_landmarks.landmark[9].y * 480 < 280:
                         button_hovered = True
+
                         # Start game if fist on button
-                        if not game_started and is_hand_fist and not game_over:
+                        if not game_started and is_hand_fist and not game_over and not (left_score == 0 and right_score == 0) and time.time() - last_fist_time > fist_cooldown:
                             game_started = True
                             countdown_active = True
                             game_start_time = time.time()
+                            last_fist_time = time.time()
+
                         # Restart game if fist on button when game is over
-                        if game_over and is_hand_fist:
+                        if game_over and is_hand_fist and time.time() - last_fist_time > fist_cooldown:
                             game_over = False
                             winner = None
                             left_score = 0
                             right_score = 0
                             ball_pos = [320, 240]
                             ball_velocity = [speed * math.cos(random.uniform(-math.pi/3, math.pi/3)), speed * math.sin(random.uniform(-math.pi/3, math.pi/3))]
-                            game_started = True
-                            countdown_active = True
-                            game_start_time = time.time()
+                            game_started = False
+                            countdown_active = False
+                            single_player = False
+                            difficulty_selected = False
+                            last_fist_time = time.time()
 
                     #print(hand_landmarks)
                     #mp_drawing.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
 
+            # Start Menu
+            if not game_started and not game_over and left_score == 0 and right_score == 0 and not difficulty_selected:
+                # Title
+                cv2.putText(frame, "HAND TRACKING PONG", (110, 80), cv2.FONT_HERSHEY_COMPLEX, 1.2, (0, 0, 0), 2)
+                
+                # Instructions
+                cv2.putText(frame, "Make a FIST to select", (180, 130), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (50, 50, 50), 2)
+                cv2.putText(frame, "FIST during game to pause", (150, 155), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (50, 50, 50), 2)
+                
+                # Single player button
+                if single_player_hovered:
+                    button_color = (0, 255, 0)
+                else:
+                    button_color = (0, 0, 0)
+                cv2.rectangle(frame, (120, 180), (300, 280), button_color, 5)
+                cv2.putText(frame, "1P", (175, 240), cv2.FONT_HERSHEY_COMPLEX, 1.5, button_color, 2)
+                
+                # Two player button
+                if two_player_hovered:
+                    button_color = (0, 255, 0)
+                else:
+                    button_color = (0, 0, 0)
+                cv2.rectangle(frame, (340, 180), (520, 280), button_color, 5)
+                cv2.putText(frame, "2P", (395, 240), cv2.FONT_HERSHEY_COMPLEX, 1.5, button_color, 2)
+                
+                # Control instructions
+                cv2.putText(frame, "Move hand UP/DOWN to control paddle", (120, 340), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (50, 50, 50), 2)
+                cv2.putText(frame, "1P: Right hand controls right paddle", (115, 370), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (50, 50, 50), 2)
+                cv2.putText(frame, "2P: Left hand = left, Right hand = right", (85, 400), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (50, 50, 50), 2)
+                cv2.putText(frame, "Press Q to Exit Application", (85, 430), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (50, 50, 50), 2)
+            
+            # Difficulty selection Menu
+            elif difficulty_selected and not game_started and not game_over and left_score == 0 and right_score == 0:
+                # Title
+                cv2.putText(frame, "SELECT DIFFICULTY", (150, 100), cv2.FONT_HERSHEY_COMPLEX, 1.2, (0, 0, 0), 2)
+                cv2.putText(frame, "Make a FIST to select", (180, 150), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (50, 50, 50), 2)
+                
+                # Easy button
+                if easy_hovered:
+                    button_color = (0, 255, 0)
+                else:
+                    button_color = (0, 0, 0)
+                cv2.rectangle(frame, (70, 200), (210, 280), button_color, 5)
+                cv2.putText(frame, "EASY", (90, 250), cv2.FONT_HERSHEY_COMPLEX, 1, button_color, 2)
+                
+                # Medium button
+                if medium_hovered:
+                    button_color = (0, 255, 0)
+                else:
+                    button_color = (0, 0, 0)
+                cv2.rectangle(frame, (250, 200), (390, 280), button_color, 5)
+                cv2.putText(frame, "MED", (270, 250), cv2.FONT_HERSHEY_COMPLEX, 1, button_color, 2)
+                
+                # Hard button
+                if hard_hovered:
+                    button_color = (0, 255, 0)
+                else:
+                    button_color = (0, 0, 0)
+                cv2.rectangle(frame, (430, 200), (570, 280), button_color, 5)
+                cv2.putText(frame, "HARD", (450, 250), cv2.FONT_HERSHEY_COMPLEX, 1, button_color, 2)
+            
             # Draw button once after checking all hands
-            if not game_started and not game_over:
-                button_color = (0, 255, 0) if button_hovered else (0, 0, 0)
+            elif not game_started and not game_over:
+                if button_hovered:
+                    button_color = (0, 255, 0)
+                else:
+                    button_color = (0, 0, 0)
+                
                 cv2.rectangle(frame, (220, 180), (420, 280), button_color, 5)
-                cv2.putText(frame, "START", (245, 230), cv2.FONT_HERSHEY_COMPLEX, 1.5, (255, 255, 255), 3)
+                cv2.putText(frame, "Pause", (240, 230), cv2.FONT_HERSHEY_COMPLEX, 1.5, button_color, 2)
             else:
                 # Draw ball and paddles
-                cv2.circle(frame, (int(ball_pos[0]), int(ball_pos[1])), ball_radius, (255,255,255),-1)
+                cv2.circle(frame, (int(ball_pos[0]), int(ball_pos[1])), ball_radius, (0,0,0),-1)
                 cv2.rectangle(frame, (10, left_paddle_y), (10 + paddle_width, left_paddle_y + paddle_height), (155, 0, 0), -1)
                 cv2.rectangle(frame, (610, right_paddle_y), (610 + paddle_width, right_paddle_y + paddle_height), (0, 0, 155), -1)
             
@@ -120,12 +268,12 @@ try:
                 cv2.line(frame, (320, y), (320, y + 10), (255, 255, 255), 1)
             
             # Draw scores
-            cv2.putText(frame, f"Left: {left_score}", (30, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (155, 0, 0), 2)
-            cv2.putText(frame, f"Right: {right_score}", (450, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 155), 2)
+            cv2.putText(frame, f"{left_score}", (285, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (155, 0, 0), 2)
+            cv2.putText(frame, f"{right_score}", (340, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.5, (0, 0, 155), 2)
             
             # Display game over message
             if game_over:
-                cv2.rectangle(frame, (100, 150), (540, 330), (0, 0, 0), -1)
+                cv2.rectangle(frame, (100, 150), (540, 330), (0, 0, 0), 2)
                 cv2.putText(frame, f"{winner} Wins!", (150, 240), cv2.FONT_HERSHEY_COMPLEX, 2, (0, 255, 0), 3)
                 cv2.putText(frame, "Fist to restart", (140, 290), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255, 255, 255), 2)
             
@@ -141,6 +289,13 @@ try:
                 
             
             if game_started and not countdown_active:
+                # AI paddle movement
+                if single_player:
+                    target_y = ball_pos[1] - paddle_height // 2
+                    diff = target_y - left_paddle_y
+                    left_paddle_y += int(diff * ai_speed)
+                    left_paddle_y = max(0, min(400, left_paddle_y))
+                
                 # Update ball position
                 ball_pos[0] += ball_velocity[0]
                 ball_pos[1] += ball_velocity[1]
@@ -176,7 +331,10 @@ try:
                     right_score += 1
                     if right_score >= max_score:
                         game_over = True
-                        winner = "Right"
+                        if single_player:
+                            winner = "You" 
+                        else: 
+                            winner = "Right"
                         game_started = False
                     else:
                         ball_pos = [320, 240]
@@ -186,7 +344,10 @@ try:
                     left_score += 1
                     if left_score >= max_score:
                         game_over = True
-                        winner = "Left"
+                        if single_player: 
+                            winner = "AI"  
+                        else:
+                            winner = "Left"
                         game_started = False
                     else:
                         ball_pos = [320, 240]
@@ -197,5 +358,4 @@ try:
 finally:
     cap.release()
     hand.close()        
-    cv2.destroyAllWindows()    
-
+    cv2.destroyAllWindows()
