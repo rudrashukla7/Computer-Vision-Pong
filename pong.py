@@ -31,7 +31,7 @@ left_paddle_y = 200
 right_paddle_y = 200
 left_score = 0
 right_score = 0
-max_score = 2
+max_score = 7
 game_started = False
 game_start_time = None
 countdown_active = False
@@ -387,3 +387,4 @@ finally:
     cap.release()
     hand.close()        
     cv2.destroyAllWindows()
+
